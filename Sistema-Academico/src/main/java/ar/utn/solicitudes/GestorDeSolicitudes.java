@@ -1,5 +1,5 @@
 package ar.utn.solicitudes;
-
+import ar.utn.solicitudes.models.DatosDeEstudiante;
 import ar.utn.solicitudes.models.Responsable;
 import ar.utn.solicitudes.models.Solicitud;
 
@@ -44,16 +44,14 @@ public class GestorDeSolicitudes {
      * Da de alta una solicitud. Si el estudiante no existe lo crea.
      * Devuelve el id generado, o -1 si hubo algun error.
      */
-    public int registrarSolicitud(String legajo, String nombre, String apellido,
-                                  String email, String telefono, String carrera,
-                                  String tipo, String obs) {
+    public int registrarSolicitud(DatosDeEstudiante datos, String tipo, String obs) {
 
         // validaciones
-        if (legajo == null || legajo.equals("")) {
+        if (datos.legajo() == null || datos.legajo().equals("")) {
             System.out.println("ERROR: falta el legajo");
             return -1;
         }
-        if (email == null || !email.contains("@")) {
+        if (datos.email() == null || !datos.email().contains("@")) {
             System.out.println("ERROR: email invalido");
             return -1;
         }
@@ -69,37 +67,36 @@ public class GestorDeSolicitudes {
 
             // busco el estudiante, si no esta lo doy de alta
             ResultSet rs = st.executeQuery(
-                    "SELECT * FROM estudiantes WHERE legajo = '" + legajo + "'");
+                    "SELECT * FROM estudiantes WHERE legajo = '" + datos.legajo() + "'");
             boolean existe = rs.next();
             rs.close();
             if (!existe) {
                 st.executeUpdate("INSERT INTO estudiantes VALUES ('"
-                        + legajo + "','" + nombre + "','" + apellido + "','"
-                        + email + "','" + telefono + "','" + carrera + "')");
+                        + datos.legajo() + "','" + datos.nombre() + "','"
+                        + datos.apellido() + "','" + datos.email() + "','"
+                        + datos.telefono() + "','" + datos.carrera() + "')");
             }
 
             // cuento cuantas tiene abiertas (no resueltas ni rechazadas)
             ResultSet rs2 = st.executeQuery(
                     "SELECT COUNT(*) FROM solicitudes WHERE legajo_estudiante = '"
-                            + legajo + "' AND estado <> 'resuelta' AND estado <> 'rechazada'");
+                            + datos.legajo() + "' AND estado <> 'resuelta' AND estado <> 'rechazada'");
             rs2.next();
             int cant = rs2.getInt(1);
             rs2.close();
 
-            if (cant >= 5) {   // 5 = maximo de solicitudes abiertas por estudiante
+            if (cant >= 5) {
                 System.out.println("ERROR: el estudiante tiene demasiadas solicitudes abiertas");
                 st.close();
                 con.close();
                 return -1;
             }
 
-            // genero el id
             ResultSet rs3 = st.executeQuery("SELECT MAX(id) FROM solicitudes");
             rs3.next();
             int nuevoId = rs3.getInt(1) + 1;
             rs3.close();
 
-            // prioridad segun el tipo: 1 = alta, 2 = media, 3 = baja
             int prio;
             if (tipo.equals("reincorporacion")) {
                 prio = 1;
@@ -110,7 +107,7 @@ public class GestorDeSolicitudes {
             }
 
             st.executeUpdate("INSERT INTO solicitudes VALUES ("
-                    + nuevoId + ",'" + legajo + "','" + tipo + "','pendiente',"
+                    + nuevoId + ",'" + datos.legajo() + "','" + tipo + "','pendiente',"
                     + prio + ",NULL,'" + LocalDate.now() + "',NULL,'" + obs + "')");
 
             st.close();
