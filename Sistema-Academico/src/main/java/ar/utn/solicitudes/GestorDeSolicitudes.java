@@ -2,7 +2,8 @@ package ar.utn.solicitudes;
 import ar.utn.solicitudes.models.DatosDeEstudiante;
 import ar.utn.solicitudes.models.Responsable;
 import ar.utn.solicitudes.models.Solicitud;
-
+import ar.utn.solicitudes.models.EstadoSolicitud;
+import ar.utn.solicitudes.models.TipoDeSolicitud;
 import java.sql.Connection;
 import java.sql.DriverManager;
 import java.sql.ResultSet;
@@ -12,7 +13,17 @@ import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
 import java.util.List;
 
+
+/**
+ * Gestor principal del sistema de solicitudes academicas.
+ * Maneja el alta, el cambio de estado, la asignacion de responsables,
+ * las busquedas, el reporte y el acceso a la base de datos.
+ */
 public class GestorDeSolicitudes {
+    private static final int MAXIMO_SOLICITUDES_ABIERTAS_POR_ESTUDIANTE = 5;
+    private static final int MAXIMO_ASIGNACIONES_POR_RESPONSABLE = 10;
+    private static final int DIAS_PARA_CONSIDERAR_VENCIDA = 30;
+
     public String url = "jdbc:h2:./datos/academico";
     public String usuario = "sa";
     public String clave = "";
@@ -55,8 +66,8 @@ public class GestorDeSolicitudes {
             System.out.println("ERROR: email invalido");
             return -1;
         }
-        if (!tipo.equals("certificado") && !tipo.equals("equivalencia")
-                && !tipo.equals("reincorporacion")) {
+        TipoDeSolicitud tipoDeSolicitud = TipoDeSolicitud.desdeCodigo(tipo);
+        if (tipoDeSolicitud == null) {
             System.out.println("ERROR: tipo invalido");
             return -1;
         }
@@ -80,12 +91,13 @@ public class GestorDeSolicitudes {
             // cuento cuantas tiene abiertas (no resueltas ni rechazadas)
             ResultSet rs2 = st.executeQuery(
                     "SELECT COUNT(*) FROM solicitudes WHERE legajo_estudiante = '"
-                            + datos.legajo() + "' AND estado <> 'resuelta' AND estado <> 'rechazada'");
+                            + datos.legajo() + "' AND estado <> '" + EstadoSolicitud.RESUELTA.codigo()
+                            + "' AND estado <> '" + EstadoSolicitud.RECHAZADA.codigo() + "'");
             rs2.next();
             int cant = rs2.getInt(1);
             rs2.close();
 
-            if (cant >= 5) {
+            if (cant >= MAXIMO_SOLICITUDES_ABIERTAS_POR_ESTUDIANTE) {
                 System.out.println("ERROR: el estudiante tiene demasiadas solicitudes abiertas");
                 st.close();
                 con.close();
@@ -97,18 +109,11 @@ public class GestorDeSolicitudes {
             int nuevoId = rs3.getInt(1) + 1;
             rs3.close();
 
-            int prio;
-            if (tipo.equals("reincorporacion")) {
-                prio = 1;
-            } else if (tipo.equals("equivalencia")) {
-                prio = 2;
-            } else {
-                prio = 3;
-            }
-
             st.executeUpdate("INSERT INTO solicitudes VALUES ("
-                    + nuevoId + ",'" + datos.legajo() + "','" + tipo + "','pendiente',"
-                    + prio + ",NULL,'" + LocalDate.now() + "',NULL,'" + obs + "')");
+                    + nuevoId + ",'" + datos.legajo() + "','" + tipo + "','"
+                    + EstadoSolicitud.PENDIENTE.codigo() + "',"
+                    + tipoDeSolicitud.prioridad() + ",NULL,'" + LocalDate.now()
+                    + "',NULL,'" + obs + "')");
 
             st.close();
             con.close();
@@ -146,23 +151,24 @@ public class GestorDeSolicitudes {
 
             String fechaCierre = "NULL";
 
-            if (actual.equals("pendiente")) {
-                if (nuevoEstado.equals("en_proceso")) {
+            if (actual.equals(EstadoSolicitud.PENDIENTE.codigo())) {
+                if (nuevoEstado.equals(EstadoSolicitud.EN_PROCESO.codigo())) {
                     // no se puede poner en proceso sin alguien asignado
                     if (resp == null) {
                         System.out.println("ERROR: no se puede procesar sin responsable");
                         st.close(); con.close();
                         return false;
                     }
-                } else if (nuevoEstado.equals("rechazada")) {
+                } else if (nuevoEstado.equals(EstadoSolicitud.RECHAZADA.codigo())) {
                     fechaCierre = "'" + LocalDate.now() + "'";
                 } else {
                     System.out.println("ERROR: transicion invalida");
                     st.close(); con.close();
                     return false;
                 }
-            } else if (actual.equals("en_proceso")) {
-                if (nuevoEstado.equals("resuelta") || nuevoEstado.equals("rechazada")) {
+            } else if (actual.equals(EstadoSolicitud.EN_PROCESO.codigo())) {
+                if (nuevoEstado.equals(EstadoSolicitud.RESUELTA.codigo())
+                        || nuevoEstado.equals(EstadoSolicitud.RECHAZADA.codigo())) {
                     fechaCierre = "'" + LocalDate.now() + "'";
                 } else {
                     System.out.println("ERROR: transicion invalida");
@@ -218,7 +224,7 @@ public class GestorDeSolicitudes {
             int asignadas = rs2.getInt("cantidad_asignada");
             rs2.close();
 
-            if (asignadas >= 10) {   // 10 = tope de solicitudes por responsable
+            if (asignadas >= MAXIMO_ASIGNACIONES_POR_RESPONSABLE) {
                 System.out.println("ERROR: el responsable esta sobrecargado");
                 st.close(); con.close();
                 return false;
@@ -362,10 +368,10 @@ public class GestorDeSolicitudes {
             ResultSet rs = st.executeQuery("SELECT estado FROM solicitudes");
             while (rs.next()) {
                 String e = rs.getString("estado");
-                if (e.equals("pendiente")) p++;
-                else if (e.equals("en_proceso")) ep++;
-                else if (e.equals("resuelta")) res++;
-                else if (e.equals("rechazada")) rech++;
+                if (e.equals(EstadoSolicitud.PENDIENTE.codigo())) p++;
+                else if (e.equals(EstadoSolicitud.EN_PROCESO.codigo())) ep++;
+                else if (e.equals(EstadoSolicitud.RESUELTA.codigo())) res++;
+                else if (e.equals(EstadoSolicitud.RECHAZADA.codigo())) rech++;
                 total++;
             }
             rs.close();
@@ -392,14 +398,14 @@ public class GestorDeSolicitudes {
                 System.out.println("Demora promedio: " + (sum / c) + " dias");
             }
 
-            // vencidas = abiertas con mas de 30 dias de antiguedad
-            System.out.println("--- VENCIDAS (mas de 30 dias) ---");
+            System.out.println("--- VENCIDAS (mas de "
+                    + DIAS_PARA_CONSIDERAR_VENCIDA + " dias) ---");
             ResultSet rs3 = st.executeQuery(
                     "SELECT id, tipo, prioridad, fecha_alta FROM solicitudes "
                             + "WHERE fecha_cierre IS NULL");
             while (rs3.next()) {
                 if (ChronoUnit.DAYS.between(rs3.getDate("fecha_alta").toLocalDate(),
-                        LocalDate.now()) > 30) {
+                        LocalDate.now()) > DIAS_PARA_CONSIDERAR_VENCIDA) {
                     System.out.println("  #" + rs3.getInt("id") + " ("
                             + rs3.getString("tipo") + ") - prioridad "
                             + rs3.getInt("prioridad"));
