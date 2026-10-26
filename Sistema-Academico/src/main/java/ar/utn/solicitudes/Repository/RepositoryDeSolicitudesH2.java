@@ -1,4 +1,4 @@
-package ar.utn.solicitudes.repository;
+package ar.utn.solicitudes.Repository;
 
 import ar.utn.solicitudes.Repository.ConexionH2;
 import ar.utn.solicitudes.Repository.ErrorDePersistencia;

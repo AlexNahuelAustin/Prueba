@@ -40,4 +40,13 @@ jacocoTestReport {
         xml.required = true
         html.required = true
     }
+
+    test {
+        useJUnitPlatform()
+        finalizedBy jacocoTestReport
+        testLogging {
+            events "passed", "skipped", "failed"
+            showStandardStreams = false
+        }
+    }
 }

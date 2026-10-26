@@ -14,9 +14,9 @@ public class Main {
         conexion.crearTablasSiNoExisten();
 
         ServicioDeSolicitudes servicio = new ServicioDeSolicitudes(
-                new ar.utn.solicitudes.repository.RepositoryDeSolicitudesH2(conexion),
-                new ar.utn.solicitudes.repository.RepositoryDeEstudiantesH2(conexion),
-                new ar.utn.solicitudes.repository.RepositoryDeResponsablesH2(conexion));
+                new ar.utn.solicitudes.Repository.RepositoryDeSolicitudesH2(conexion),
+                new ar.utn.solicitudes.Repository.RepositoryDeEstudiantesH2(conexion),
+                new ar.utn.solicitudes.Repository.RepositoryDeResponsablesH2(conexion));
 
         GeneradorDeReportes reportes = new GeneradorDeReportes(servicio);
 

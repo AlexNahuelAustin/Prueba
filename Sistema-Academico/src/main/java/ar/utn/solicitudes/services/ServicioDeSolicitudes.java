@@ -28,6 +28,9 @@ public class ServicioDeSolicitudes {
         this.estudiantes = estudiantes;
         this.responsables = responsables;
     }
+    public Optional<Solicitud> buscarPorId(int id) {
+        return solicitudes.buscarPorId(id);
+    }
 
     public int registrarSolicitud(DatosDeEstudiante datos, String tipo, String obs) {
 
@@ -150,4 +153,6 @@ public class ServicioDeSolicitudes {
     public List<Solicitud> buscarTodas() {
         return solicitudes.buscarTodas();
     }
+
+
 }
